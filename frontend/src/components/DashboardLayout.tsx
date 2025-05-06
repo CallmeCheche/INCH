@@ -1,6 +1,7 @@
 
 import React, { ReactNode, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { authService } from '@/services/auth.service';
 import { 
   User, 
   Calendar, 
@@ -21,6 +22,16 @@ import Logo from './Logo';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogClose
+} from '@/components/ui/dialog';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -29,11 +40,25 @@ interface DashboardLayoutProps {
 
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, userType = 'patient' }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const isMobile = useIsMobile();
   const location = useLocation();
+  const navigate = useNavigate();
 
   const toggleSidebar = () => setSidebarOpen(!sidebarOpen);
   const closeSidebar = () => setSidebarOpen(false);
+  
+  const openLogoutDialog = () => {
+    setShowLogoutDialog(true);
+  };
+  
+  const handleLogout = () => {
+    setShowLogoutDialog(false);
+    setIsLoggingOut(true);
+    // Rediriger vers la page de déconnexion qui gèrera le processus de déconnexion
+    navigate('/logout');
+  };
 
   const patientMenuItems = [
     { name: 'Overview', href: '/dashboard', icon: Home },
@@ -170,10 +195,37 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, userType = 
             </nav>
             
             <div className="mt-10 pt-6 border-t border-gray-200">
-              <Button variant="outline" className="w-full justify-start text-red-600 hover:text-red-700">
+              <Button 
+                variant="outline" 
+                className="w-full justify-start text-red-600 hover:text-red-700"
+                onClick={openLogoutDialog}
+                disabled={isLoggingOut}
+              >
                 <LogOut className="mr-2 h-4 w-4" />
-                Log Out
+                {isLoggingOut ? 'Logging out...' : 'Log Out'}
               </Button>
+              
+              {/* Boîte de dialogue de confirmation de déconnexion */}
+              <Dialog open={showLogoutDialog} onOpenChange={setShowLogoutDialog}>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Confirm Logout</DialogTitle>
+                    <DialogDescription>
+                      Are you sure you want to log out? Any unsaved changes will be lost.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <DialogFooter className="flex flex-row justify-end gap-2 sm:justify-end mt-4">
+                    <DialogClose asChild>
+                      <Button type="button" variant="outline">
+                        Cancel
+                      </Button>
+                    </DialogClose>
+                    <Button type="button" variant="destructive" onClick={handleLogout}>
+                      Log Out
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </div>
           </div>
         </aside>

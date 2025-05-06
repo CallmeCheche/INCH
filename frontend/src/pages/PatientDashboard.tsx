@@ -1,5 +1,4 @@
-
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Calendar, Clock, User, Star, Search, ArrowRight } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,52 +6,82 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import DashboardLayout from '@/components/DashboardLayout';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
-
-// Sample data
-const upcomingAppointments = [
-  {
-    id: 1,
-    doctorName: "Dr. Ngozi Okonkwo",
-    specialty: "Dermatologist",
-    date: "2025-04-12",
-    time: "10:00 AM",
-    type: "In-person",
-    image: "/lovable-uploads/e37679a1-94a0-4d90-ab16-ad62bd683ef8.png"
-  },
-  {
-    id: 2,
-    doctorName: "Dr. Kwame Nkrumah",
-    specialty: "Pediatrician",
-    date: "2025-04-15",
-    time: "2:30 PM",
-    type: "Video Call",
-    image: "/lovable-uploads/c43c2f96-c9fe-401b-b4de-adf0dba7af98.png"
-  }
-];
+import { patientService, PatientStats, PatientProfile } from '@/services/patient.service';
+import { Appointment } from '@/services/appointment.service';
+import { authService, User } from '@/services/auth.service';
 
 const PatientDashboard = () => {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [stats, setStats] = useState<PatientStats | null>(null);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<PatientProfile | null>(null);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        
+        // Charger les données utilisateur
+        const userData = await authService.getUser();
+        console.log('User data loaded:', userData);
+        setUser(userData);
+        
+        // Charger le profil du patient
+        try {
+          const patientProfileData = await patientService.getProfile();
+          console.log('Patient profile loaded:', patientProfileData);
+          setProfile(patientProfileData);
+        } catch (profileErr) {
+          console.error('Error fetching patient profile:', profileErr);
+          // Continuer même si le profil n'a pas pu être chargé
+        }
+        
+        // Charger les statistiques du tableau de bord
+        const dashboardStats = await patientService.getDashboardStats();
+        console.log('Dashboard stats loaded:', dashboardStats);
+        setStats(dashboardStats);
+        
+        // Charger les rendez-vous à venir
+        const patientAppointments = await patientService.getAppointments();
+        console.log('Appointments loaded:', patientAppointments);
+        
+        // Filtrer pour n'obtenir que les rendez-vous à venir
+        const upcomingAppointments = patientAppointments.filter(
+          (appointment: Appointment) => new Date(appointment.date) >= new Date()
+        );
+        setAppointments(upcomingAppointments);
+        
+        setLoading(false);
+      } catch (err) {
+        console.error('Error fetching dashboard data:', err);
+        setError('Failed to load dashboard data. Please try again later.');
+        setLoading(false);
+      }
+    };
+    
+    fetchData();
+  }, []);
+
+  // Aucune fonction supplémentaire n'est nécessaire pour l'affichage du nom de l'utilisateur
+
   return (
     <DashboardLayout userType="patient">
-      <div className="space-y-6">
-        {/* Page header */}
-        <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
+      <div className="p-6">
+        <div className="flex justify-between items-center mb-8">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-            <p className="text-gray-600">Welcome back, Ama!</p>
+            <h1 className="text-2xl font-bold text-gray-800">Dashboard</h1>
+            <p className="text-gray-600">Welcome back, {user?.name ? user.name.split(' ')[0] : 'User'}!</p>
           </div>
-          
-          <div className="flex space-x-2 w-full sm:w-auto">
-            <div className="relative flex-1 sm:flex-none">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-              <input
-                type="text"
-                placeholder="Search doctors..."
-                className="w-full sm:w-64 pl-9 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary"
-              />
-            </div>
-            <Button asChild>
-              <Link to="/doctors">Find Doctor</Link>
-            </Button>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+            <input
+              type="text"
+              placeholder="Search doctors..."
+              className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+            />
+            <Button className="ml-2">Find Doctor</Button>
           </div>
         </div>
 
@@ -65,7 +94,11 @@ const PatientDashboard = () => {
               </div>
               <div>
                 <p className="text-sm text-gray-500">Upcoming Appointments</p>
-                <h4 className="text-2xl font-bold text-gray-900">2</h4>
+                {loading ? (
+                  <p className="text-sm text-gray-400">Loading...</p>
+                ) : (
+                  <h4 className="text-2xl font-bold text-gray-900">{stats?.upcomingAppointments || 0}</h4>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -76,7 +109,11 @@ const PatientDashboard = () => {
               </div>
               <div>
                 <p className="text-sm text-gray-500">Past Appointments</p>
-                <h4 className="text-2xl font-bold text-gray-900">5</h4>
+                {loading ? (
+                  <p className="text-sm text-gray-400">Loading...</p>
+                ) : (
+                  <h4 className="text-2xl font-bold text-gray-900">{stats?.pastAppointments || 0}</h4>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -87,7 +124,11 @@ const PatientDashboard = () => {
               </div>
               <div>
                 <p className="text-sm text-gray-500">Reviews Given</p>
-                <h4 className="text-2xl font-bold text-gray-900">3</h4>
+                {loading ? (
+                  <p className="text-sm text-gray-400">Loading...</p>
+                ) : (
+                  <h4 className="text-2xl font-bold text-gray-900">{stats?.reviewsGiven || 0}</h4>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -110,25 +151,28 @@ const PatientDashboard = () => {
                 </Button>
               </CardHeader>
               <CardContent>
-                {upcomingAppointments.length > 0 ? (
+                {loading ? (
+                  <div className="py-8 text-center">
+                    <p className="text-gray-500">Loading appointments...</p>
+                  </div>
+                ) : error ? (
+                  <div className="py-8 text-center">
+                    <p className="text-red-500">{error}</p>
+                    <Button variant="outline" className="mt-4" onClick={() => window.location.reload()}>
+                      Retry
+                    </Button>
+                  </div>
+                ) : appointments.length > 0 ? (
                   <ul className="divide-y divide-gray-200">
-                    {upcomingAppointments.map((appointment) => (
+                    {appointments.map((appointment) => (
                       <li 
                         key={appointment.id} 
                         className="py-4 first:pt-0 last:pb-0"
                       >
                         <div className="flex items-center justify-between">
-                          <div className="flex items-center">
-                            <Avatar className="h-10 w-10 mr-3">
-                              <AvatarImage src={appointment.image} alt={appointment.doctorName} />
-                              <AvatarFallback className="bg-gray-200 text-gray-500">
-                                {appointment.doctorName.split(' ').map(n => n[0]).join('')}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div>
-                              <p className="font-medium text-gray-900">{appointment.doctorName}</p>
-                              <p className="text-sm text-gray-500">{appointment.specialty}</p>
-                            </div>
+                          <div>
+                            <p className="font-medium text-gray-900">{appointment.doctorName}</p>
+                            <p className="text-sm text-gray-500">{appointment.specialty}</p>
                           </div>
                           <div className="text-right">
                             <p className="text-sm font-medium">
@@ -179,31 +223,53 @@ const PatientDashboard = () => {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  <div>
-                    <div className="flex justify-between mb-1">
-                      <span className="text-sm font-medium">75%</span>
+                  {loading ? (
+                    <div className="py-4 text-center">
+                      <p className="text-gray-500">Loading profile data...</p>
                     </div>
-                    <Progress value={75} className="h-2" />
-                  </div>
-                  
-                  <ul className="space-y-2">
-                    <li className="flex items-center text-sm">
-                      <div className="h-4 w-4 rounded-full bg-primary mr-2"></div>
-                      <span className="text-gray-700">Personal information complete</span>
-                    </li>
-                    <li className="flex items-center text-sm">
-                      <div className="h-4 w-4 rounded-full bg-primary mr-2"></div>
-                      <span className="text-gray-700">Contact details verified</span>
-                    </li>
-                    <li className="flex items-center text-sm">
-                      <div className="h-4 w-4 rounded-full bg-gray-200 mr-2"></div>
-                      <span className="text-gray-500">Medical history pending</span>
-                    </li>
-                    <li className="flex items-center text-sm">
-                      <div className="h-4 w-4 rounded-full bg-gray-200 mr-2"></div>
-                      <span className="text-gray-500">Payment details pending</span>
-                    </li>
-                  </ul>
+                  ) : (
+                    <>
+                      <div>
+                        <div className="flex justify-between mb-1">
+                          <span className="text-sm font-medium">{stats?.profileCompletion || 0}%</span>
+                        </div>
+                        <Progress value={stats?.profileCompletion || 0} className="h-2" />
+                      </div>
+                      
+                      <ul className="space-y-2">
+                        <li className="flex items-center text-sm">
+                          <div className={`h-4 w-4 rounded-full ${user?.name ? 'bg-primary' : 'bg-gray-200'} mr-2`}></div>
+                          <span className={user?.name ? 'text-gray-700' : 'text-gray-500'}>
+                            Personal information {user?.name ? 'complete' : 'pending'}
+                          </span>
+                        </li>
+                        <li className="flex items-center text-sm">
+                          <div className={`h-4 w-4 rounded-full ${profile?.phone || profile?.address ? 'bg-primary' : 'bg-gray-200'} mr-2`}></div>
+                          <span className={profile?.phone || profile?.address ? 'text-gray-700' : 'text-gray-500'}>
+                            Contact details {profile?.phone || profile?.address ? 'verified' : 'pending'}
+                          </span>
+                        </li>
+                        <li className="flex items-center text-sm">
+                          <div className={`h-4 w-4 rounded-full ${profile?.medicalHistory ? 'bg-primary' : 'bg-gray-200'} mr-2`}></div>
+                          <span className={profile?.medicalHistory ? 'text-gray-700' : 'text-gray-500'}>
+                            Medical history {profile?.medicalHistory ? 'complete' : 'pending'}
+                          </span>
+                        </li>
+                        <li className="flex items-center text-sm">
+                          <div className={`h-4 w-4 rounded-full ${stats?.profileCompletion === 100 ? 'bg-primary' : 'bg-gray-200'} mr-2`}></div>
+                          <span className={stats?.profileCompletion === 100 ? 'text-gray-700' : 'text-gray-500'}>
+                            Payment details {stats?.profileCompletion === 100 ? 'complete' : 'pending'}
+                          </span>
+                        </li>
+                      </ul>
+                      
+                      <Button className="w-full mt-4" asChild>
+                        <Link to="/profile">
+                          Complete Profile
+                        </Link>
+                      </Button>
+                    </>
+                  )}
                   
                   <Button variant="outline" asChild className="w-full">
                     <Link to="/dashboard/settings">Complete Profile</Link>

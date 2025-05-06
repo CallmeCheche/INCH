@@ -19,12 +19,15 @@ class AuthController extends Controller
             'name'     => 'required|string|max:255',
             'email'    => 'required|string|email|unique:users',
             'password' => 'required|string|min:6|confirmed',
+            'role_id'  => 'required|in:doctor,patient',
         ]);
 
         $user = User::create([
             'name'     => $request->name,
             'email'    => $request->email,
             'password' => bcrypt($request->password),
+            'role_id'  => $request->role_id,
+            'profile_photo_path' => $request->profile_photo_path
         ]);
 
         return response()->json([
@@ -79,4 +82,36 @@ class AuthController extends Controller
     {
         return response()->json($request->user());
     }
+
+/**
+ * Update user profile photo
+ */
+public function updateProfilePhoto(Request $request)
+{
+    $request->validate([
+        'profile_photo' => 'required|image|mimes:jpeg,png,jpg,gif|max:2048',
+    ]);
+
+    $user = $request->user();
+    
+    // Delete old photo if exists
+    if ($user->profile_photo_path) {
+        $oldPhotoPath = public_path('storage/' . $user->profile_photo_path);
+        if (file_exists($oldPhotoPath)) {
+            unlink($oldPhotoPath);
+        }
+    }
+    
+    // Store new photo
+    $photoPath = $request->file('profile_photo')->store('profile-photos', 'public');
+    
+    // Update user record
+    $user->profile_photo_path = $photoPath;
+    $user->save();
+    
+    return response()->json([
+        'message' => 'Profile photo updated successfully',
+        'user' => $user
+    ]);
+}
 }
