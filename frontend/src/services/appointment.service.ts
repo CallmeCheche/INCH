@@ -5,9 +5,10 @@ export interface Appointment {
   date: string;
   time: string;
   type: string;
-  status: string;
+  status: 'pending' | 'approved' | 'rejected' | 'completed';
   notes?: string;
-  fee?: number;
+  fee: number;
+  commission_fee: number;
   doctorName?: string;
   doctorImage?: string;
   doctorId?: number;
